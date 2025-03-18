@@ -11,13 +11,14 @@ use Webkul\Lead\Repositories\StageRepository;
 use Webkul\Lead\Repositories\TypeRepository;
 use Webkul\Tag\Repositories\TagRepository;
 use Webkul\User\Repositories\UserRepository;
+use Webkul\Lead\Models\Pipeline;
 
 class LeadDataGrid extends DataGrid
 {
     /**
      * Pipeline instance.
      *
-     * @var \Webkul\Contract\Repositories\Pipeline
+     * @var \Webkul\Lead\Models\Pipeline
      */
     protected $pipeline;
 

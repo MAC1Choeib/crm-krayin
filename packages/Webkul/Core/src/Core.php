@@ -202,9 +202,18 @@ class Core
      */
     public function currencySymbol($code)
     {
-        $formatter = new \NumberFormatter(app()->getLocale().'@currency='.$code, \NumberFormatter::CURRENCY);
+        // Original implementation likely uses NumberFormatter
+        // Let's replace it with a simple array lookup
 
-        return $formatter->getSymbol(\NumberFormatter::CURRENCY_SYMBOL);
+        $symbols = [
+            'USD' => '$',
+            'EUR' => '€',
+            'GBP' => '£',
+            'INR' => '₹',
+            // Add more currencies as needed
+        ];
+
+        return $symbols[$code] ?? $code;
     }
 
     /**

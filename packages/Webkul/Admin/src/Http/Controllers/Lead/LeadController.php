@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
@@ -74,40 +75,51 @@ class LeadController extends Controller
      */
     public function get(): JsonResponse
     {
-        if (request()->query('pipeline_id')) {
-            $pipeline = $this->pipelineRepository->find(request()->query('pipeline_id'));
-        } else {
-            $pipeline = $this->pipelineRepository->getDefaultPipeline();
-        }
-
-        if ($stageId = request()->query('pipeline_stage_id')) {
-            $stages = $pipeline->stages->where('id', request()->query('pipeline_stage_id'));
-        } else {
-            $stages = $pipeline->stages;
-        }
-
-        foreach ($stages as $stage) {
-            /**
-             * We have to create a new instance of the lead repository every time, which is
-             * why we're not using the injected one.
-             */
-            $query = app(LeadRepository::class)
-                ->pushCriteria(app(RequestCriteria::class))
-                ->where([
-                    'lead_pipeline_id'       => $pipeline->id,
-                    'lead_pipeline_stage_id' => $stage->id,
-                ]);
-
-            if ($userIds = bouncer()->getAuthorizedUserIds()) {
-                $query->whereIn('leads.user_id', $userIds);
+        try {
+            if (request()->query('pipeline_id')) {
+                $pipeline = $this->pipelineRepository->find(request()->query('pipeline_id'));
+            } else {
+                $pipeline = $this->pipelineRepository->getDefaultPipeline();
             }
 
-            $stage->lead_value = (clone $query)->sum('lead_value');
+            if (!$pipeline) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pipeline not found',
+                    'data' => null
+                ], 404);
+            }
 
-            $data[$stage->sort_order] = (new StageResource($stage))->jsonSerialize();
+            if ($stageId = request()->query('pipeline_stage_id')) {
+                $stages = $this->stageRepository->findWhere([
+                    'lead_pipeline_id' => $pipeline->id,
+                    'id' => $stageId
+                ]);
+            } else {
+                $stages = $this->stageRepository->findWhere([
+                    'lead_pipeline_id' => $pipeline->id
+                ]);
+            }
 
-            $data[$stage->sort_order]['leads'] = [
-                'data' => LeadResource::collection($paginator = $query->with([
+            $data = [];
+
+            foreach ($stages as $stage) {
+                $query = app(LeadRepository::class)
+                    ->pushCriteria(app(RequestCriteria::class))
+                    ->where([
+                        'lead_pipeline_id'       => $pipeline->id,
+                        'lead_pipeline_stage_id' => $stage->id,
+                    ]);
+
+                if ($userIds = bouncer()->getAuthorizedUserIds()) {
+                    $query->whereIn('leads.user_id', $userIds);
+                }
+
+                $stage->lead_value = (clone $query)->sum('lead_value');
+
+                $data[$stage->sort_order] = (new StageResource($stage))->jsonSerialize();
+
+                $paginator = $query->with([
                     'tags',
                     'type',
                     'source',
@@ -116,22 +128,33 @@ class LeadController extends Controller
                     'person.organization',
                     'pipeline',
                     'pipeline.stages',
-                    'stage',
-                    'attribute_values',
-                ])->paginate(10)),
+                ])->paginate(10);
 
-                'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'from'         => $paginator->firstItem(),
-                    'last_page'    => $paginator->lastPage(),
-                    'per_page'     => $paginator->perPage(),
-                    'to'           => $paginator->lastItem(),
-                    'total'        => $paginator->total(),
-                ],
-            ];
+                $data[$stage->sort_order]['leads'] = [
+                    'data' => LeadResource::collection($paginator),
+                    'meta' => [
+                        'current_page' => $paginator->currentPage(),
+                        'from' => $paginator->firstItem(),
+                        'last_page' => $paginator->lastPage(),
+                        'per_page' => $paginator->perPage(),
+                        'to' => $paginator->lastItem(),
+                        'total' => $paginator->total(),
+                    ]
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => null
+            ], 500);
         }
-
-        return response()->json($data);
     }
 
     /**
@@ -160,7 +183,9 @@ class LeadController extends Controller
         } else {
             $pipeline = $this->pipelineRepository->getDefaultPipeline();
 
-            $stage = $pipeline->stages()->first();
+            $stage = $this->stageRepository->findWhere([
+                'lead_pipeline_id' => $pipeline->id
+            ])->first();
 
             $data['lead_pipeline_id'] = $pipeline->id;
 
@@ -195,14 +220,13 @@ class LeadController extends Controller
     /**
      * Display a resource.
      */
-    public function view(int $id): View
+    public function view(int $id): View|RedirectResponse
     {
         $lead = $this->leadRepository->findOrFail($id);
 
-        if (
-            $userIds = bouncer()->getAuthorizedUserIds()
-            && ! in_array($lead->user_id, $userIds)
-        ) {
+        $userIds = bouncer()->getAuthorizedUserIds();
+
+        if ($userIds && !in_array($lead->user_id, $userIds)) {
             return redirect()->route('admin.leads.index');
         }
 
@@ -225,7 +249,9 @@ class LeadController extends Controller
         } else {
             $pipeline = $this->pipelineRepository->getDefaultPipeline();
 
-            $stage = $pipeline->stages()->first();
+            $stage = $this->stageRepository->findWhere([
+                'lead_pipeline_id' => $pipeline->id
+            ])->first();
 
             $data['lead_pipeline_id'] = $pipeline->id;
 

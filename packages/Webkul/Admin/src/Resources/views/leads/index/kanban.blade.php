@@ -40,7 +40,7 @@
                             <!-- Stage Title and Action -->
                             <div class="flex items-center justify-between">
                                 <span class="text-xs font-medium dark:text-white">
-                                    @{{ stage.name }} (@{{ stage.leads.meta.total }})
+                                    @{{ stage.name }} (@{{ stage.leads?.meta?.total || 0 }})
                                 </span>
 
                                 @if (bouncer()->hasPermission('leads.create'))
@@ -76,11 +76,11 @@
                         <!-- Draggable Stage Lead Cards -->
                         <draggable
                             class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto p-2"
-                            :class="{ 'justify-center': stage.leads.data.length === 0 }"
+                            :class="{ 'justify-center': !stage.leads?.data?.length }"
                             ghost-class="draggable-ghost"
                             handle=".lead-item"
                             v-bind="{animation: 200}"
-                            :list="stage.leads.data"
+                            :list="stage.leads?.data || []"
                             item-key="id"
                             group="leads"
                             @scroll="handleScroll(stage, $event)"
@@ -89,7 +89,7 @@
                             <template #header>
                                 <div 
                                     class="flex flex-col items-center justify-center"
-                                    v-if="! stage.leads.data.length"
+                                    v-if="!stage.leads?.data?.length"
                                 >
                                     <img
                                         class="dark:mix-blend-exclusion dark:invert"
@@ -316,53 +316,51 @@
                  * @returns {Promise} The promise object representing the request.
                  */
                 get(requestedParams = {}) {
+                    this.isLoading = true;
+
                     let params = {
-                        search: '',
-                        searchFields: '',
-                        pipeline_id: "{{ request('pipeline_id') }}",
-                        limit: 10,
+                        ...this.applied.filters,
+                        ...this.applied.search,
                     };
-
-                    this.applied.filters.columns.forEach((column) => {
-                        if (column.index === 'all') {
-                            if (! column.value.length) {
-                                return;
-                            }
-
-                            params['search'] += `title:${column.value.join(',')};`;
-                            params['searchFields'] += `title:like;`;
-
-                            return;
-                        }
-
-                        /**
-                         * If the column is a searchable dropdown, then we need to append the column value
-                         * with the column label. Otherwise, we can directly append the column value.
-                         */
-                        params['search'] += column.filterable_type === 'searchable_dropdown'
-                            ? `${column.index}:${column.value.map(option => option.value).join(',')};`
-                            : `${column.index}:${column.value.join(',')};`;
-
-                        params['searchFields'] += `${column.index}:${column.search_field};`;
-                    });
 
                     return this.$axios
                         .get("{{ route('admin.leads.get') }}", {
                             params: {
                                 ...params,
-
-                                ...requestedParams,
                             }
                         })
                         .then(response => {
                             this.isLoading = false;
+
+                            if (response.data.success && response.data.data) {
+                                for (let [sortOrder, data] of Object.entries(response.data.data)) {
+                                    // Initialize leads data structure if it doesn't exist
+                                    if (!data.leads) {
+                                        data.leads = {
+                                            data: [],
+                                            meta: {
+                                                current_page: 1,
+                                                from: 0,
+                                                last_page: 1,
+                                                per_page: 10,
+                                                to: 0,
+                                                total: 0
+                                            }
+                                        };
+                                    }
+                                    this.stageLeads[sortOrder] = data;
+                                }
+                            } else {
+                                console.error('Failed to fetch leads:', response.data.message);
+                            }
 
                             this.updateKanbans();
 
                             return response;
                         })
                         .catch(error => {
-                            console.log(error)
+                            this.isLoading = false;
+                            console.error('Error fetching leads:', error);
                         });
                 },
 
@@ -442,14 +440,18 @@
                     if (event.removed) {
                         stage.lead_value = parseFloat(stage.lead_value) - parseFloat(event.removed.element.lead_value);
 
-                        this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total - 1;
+                        if (this.stageLeads[stage.sort_order]?.leads?.meta) {
+                            this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total - 1;
+                        }
 
                         return;
                     }
 
                     stage.lead_value = parseFloat(stage.lead_value) + parseFloat(event.added.element.lead_value);
 
-                    this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total + 1;
+                    if (this.stageLeads[stage.sort_order]?.leads?.meta) {
+                        this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total + 1;
+                    }
 
                     this.$axios
                         .put("{{ route('admin.leads.stage.update', 'replace') }}".replace('replace', event.added.element.id), {
@@ -477,7 +479,8 @@
                         return;
                     }
 
-                    if (this.stageLeads[stage.sort_order].leads.meta.current_page == this.stageLeads[stage.sort_order].leads.meta.last_page) {
+                    if (!this.stageLeads[stage.sort_order]?.leads?.meta || 
+                        this.stageLeads[stage.sort_order].leads.meta.current_page == this.stageLeads[stage.sort_order].leads.meta.last_page) {
                         return;
                     }
 

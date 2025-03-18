@@ -4,6 +4,7 @@ namespace Webkul\Activity\Repositories;
 
 use Illuminate\Container\Container;
 use Webkul\Core\Eloquent\Repository;
+use Illuminate\Support\Facades\DB;
 
 class ActivityRepository extends Repository
 {
@@ -109,7 +110,7 @@ class ActivityRepository extends Repository
             'activities.schedule_to as end',
             'users.name as user_name',
         )
-            ->addSelect(\DB::raw('IF(activities.is_done, "done", "") as class'))
+            ->addSelect(DB::raw('IF(activities.is_done, "done", "") as class'))
             ->leftJoin('activity_participants', 'activities.id', '=', 'activity_participants.activity_id')
             ->leftJoin('users', 'activities.user_id', '=', 'users.id')
             ->whereIn('type', ['call', 'meeting', 'lunch'])

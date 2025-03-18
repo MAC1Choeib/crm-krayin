@@ -10,12 +10,15 @@ use Webkul\Admin\DataGrids\Settings\PipelineDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\PipelineForm;
 use Webkul\Lead\Repositories\PipelineRepository;
+use Webkul\Lead\Models\Pipeline;
+use Webkul\Lead\Models\Stage;
 
 class PipelineController extends Controller
 {
     /**
      * Create a new controller instance.
      *
+     * @param  \Webkul\Lead\Repositories\PipelineRepository  $pipelineRepository
      * @return void
      */
     public function __construct(protected PipelineRepository $pipelineRepository) {}
@@ -106,12 +109,18 @@ class PipelineController extends Controller
                 'message' => trans('admin::app.settings.pipelines.index.default-delete-error'),
             ], 400);
         } else {
+            /** @var Pipeline $defaultPipeline */
             $defaultPipeline = $this->pipelineRepository->getDefaultPipeline();
 
-            $pipeline->leads()->update([
-                'lead_pipeline_id'       => $defaultPipeline->id,
-                'lead_pipeline_stage_id' => $defaultPipeline->stages()->first()->id,
-            ]);
+            /** @var Stage|null $firstStage */
+            $firstStage = $defaultPipeline->stages()->first();
+
+            if ($firstStage) {
+                $pipeline->leads()->update([
+                    'lead_pipeline_id'       => $defaultPipeline->id,
+                    'lead_pipeline_stage_id' => $firstStage->id,
+                ]);
+            }
         }
 
         try {
