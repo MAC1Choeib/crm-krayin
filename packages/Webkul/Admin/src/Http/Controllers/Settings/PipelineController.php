@@ -9,16 +9,15 @@ use Illuminate\View\View;
 use Webkul\Admin\DataGrids\Settings\PipelineDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
 use Webkul\Admin\Http\Requests\PipelineForm;
-use Webkul\Lead\Repositories\PipelineRepository;
 use Webkul\Lead\Models\Pipeline;
 use Webkul\Lead\Models\Stage;
+use Webkul\Lead\Repositories\PipelineRepository;
 
 class PipelineController extends Controller
 {
     /**
      * Create a new controller instance.
      *
-     * @param  \Webkul\Lead\Repositories\PipelineRepository  $pipelineRepository
      * @return void
      */
     public function __construct(protected PipelineRepository $pipelineRepository) {}

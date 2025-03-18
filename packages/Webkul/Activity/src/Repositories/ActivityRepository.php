@@ -3,8 +3,8 @@
 namespace Webkul\Activity\Repositories;
 
 use Illuminate\Container\Container;
-use Webkul\Core\Eloquent\Repository;
 use Illuminate\Support\Facades\DB;
+use Webkul\Core\Eloquent\Repository;
 
 class ActivityRepository extends Repository
 {

@@ -7,7 +7,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Prettus\Repository\Criteria\RequestCriteria;
 use Webkul\Admin\DataGrids\Lead\LeadDataGrid;
@@ -82,22 +81,22 @@ class LeadController extends Controller
                 $pipeline = $this->pipelineRepository->getDefaultPipeline();
             }
 
-            if (!$pipeline) {
+            if (! $pipeline) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Pipeline not found',
-                    'data' => null
+                    'data'    => null,
                 ], 404);
             }
 
             if ($stageId = request()->query('pipeline_stage_id')) {
                 $stages = $this->stageRepository->findWhere([
                     'lead_pipeline_id' => $pipeline->id,
-                    'id' => $stageId
+                    'id'               => $stageId,
                 ]);
             } else {
                 $stages = $this->stageRepository->findWhere([
-                    'lead_pipeline_id' => $pipeline->id
+                    'lead_pipeline_id' => $pipeline->id,
                 ]);
             }
 
@@ -134,25 +133,25 @@ class LeadController extends Controller
                     'data' => LeadResource::collection($paginator),
                     'meta' => [
                         'current_page' => $paginator->currentPage(),
-                        'from' => $paginator->firstItem(),
-                        'last_page' => $paginator->lastPage(),
-                        'per_page' => $paginator->perPage(),
-                        'to' => $paginator->lastItem(),
-                        'total' => $paginator->total(),
-                    ]
+                        'from'         => $paginator->firstItem(),
+                        'last_page'    => $paginator->lastPage(),
+                        'per_page'     => $paginator->perPage(),
+                        'to'           => $paginator->lastItem(),
+                        'total'        => $paginator->total(),
+                    ],
                 ];
             }
 
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data'    => $data,
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-                'data' => null
+                'data'    => null,
             ], 500);
         }
     }
@@ -184,7 +183,7 @@ class LeadController extends Controller
             $pipeline = $this->pipelineRepository->getDefaultPipeline();
 
             $stage = $this->stageRepository->findWhere([
-                'lead_pipeline_id' => $pipeline->id
+                'lead_pipeline_id' => $pipeline->id,
             ])->first();
 
             $data['lead_pipeline_id'] = $pipeline->id;
@@ -226,7 +225,7 @@ class LeadController extends Controller
 
         $userIds = bouncer()->getAuthorizedUserIds();
 
-        if ($userIds && !in_array($lead->user_id, $userIds)) {
+        if ($userIds && ! in_array($lead->user_id, $userIds)) {
             return redirect()->route('admin.leads.index');
         }
 
@@ -250,7 +249,7 @@ class LeadController extends Controller
             $pipeline = $this->pipelineRepository->getDefaultPipeline();
 
             $stage = $this->stageRepository->findWhere([
-                'lead_pipeline_id' => $pipeline->id
+                'lead_pipeline_id' => $pipeline->id,
             ])->first();
 
             $data['lead_pipeline_id'] = $pipeline->id;
